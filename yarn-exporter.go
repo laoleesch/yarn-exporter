@@ -42,7 +42,7 @@ func main() {
 	level.Info(logger).Log("msg", "Starting yarn-exporter")
 	level.Info(logger).Log("msg", "Listening on ", "address", *listenAddress)
 
-	exporter, err := NewExporter(*yarnURL, *yarnSSLVerify, *yarnScrapeScheduler, *yarnScrapeAppsRunning, *yarnTimeout, logger)
+	exporter, err := NewExporter(*yarnURL, *yarnScrapeScheduler, *yarnScrapeAppsRunning, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "Error creating an exporter", "err", err)
 		os.Exit(1)
@@ -102,8 +102,6 @@ const (
 type Exporter struct {
 	URL                                *url.URL
 	scrapeScheduler, scrapeAppsRunning bool
-	timeout                            time.Duration
-	sslVerify                          bool
 
 	up                   prometheus.Gauge
 	totalScrapes         prometheus.Counter
@@ -115,7 +113,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(targetURL string, sslVerify bool, yarnScrapeScheduler bool, yarnScrapeAppsRunning bool, timeout time.Duration, logger log.Logger) (*Exporter, error) {
+func NewExporter(targetURL string, yarnScrapeScheduler bool, yarnScrapeAppsRunning bool, logger log.Logger) (*Exporter, error) {
 	baseURL, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
@@ -125,8 +123,6 @@ func NewExporter(targetURL string, sslVerify bool, yarnScrapeScheduler bool, yar
 		URL:               baseURL,
 		scrapeScheduler:   yarnScrapeScheduler,
 		scrapeAppsRunning: yarnScrapeAppsRunning,
-		timeout:           timeout,
-		sslVerify:         sslVerify,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "exporter_backend_up",
@@ -361,9 +357,9 @@ func (e *Exporter) fetchPath(subpath string) ([]byte, error) {
 		level.Error(e.logger).Log("msg", "Can't parse target url", "err", err)
 		return nil, err
 	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !e.sslVerify}}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !*yarnSSLVerify}}
 	client := http.Client{
-		Timeout:   e.timeout,
+		Timeout:   *yarnTimeout,
 		Transport: tr,
 	}
 	req := http.Request{
