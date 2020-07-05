@@ -33,7 +33,6 @@ linters:
     - "varcheck"
     - "deadcode"
     - "stylecheck"
-    - "gosec"
     - "interfacer"
     - "unconvert"
     - "goconst"

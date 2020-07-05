@@ -52,13 +52,16 @@ func main() {
 	r := http.NewServeMux()
 	r.Handle(*metricsPath, promhttp.Handler())
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html>
+		_, err := w.Write([]byte(`<html>
              <head><title>YARN Exporter</title></head>
              <body>
              <h1>YARN Exporter</h1>
              <p><a href='` + *metricsPath + `'>Metrics</a></p>
              </body>
-             </html>`))
+			 </html>`))
+		if err != nil {
+			level.Error(logger).Log("msg", "Error generate page", "err", err)
+		}
 	})
 	srv := &http.Server{
 		Handler:      r,
@@ -100,6 +103,7 @@ type Exporter struct {
 	URL                                *url.URL
 	scrapeScheduler, scrapeAppsRunning bool
 	timeout                            time.Duration
+	sslVerify                          bool
 
 	up                   prometheus.Gauge
 	totalScrapes         prometheus.Counter
@@ -122,6 +126,7 @@ func NewExporter(targetURL string, sslVerify bool, yarnScrapeScheduler bool, yar
 		scrapeScheduler:   yarnScrapeScheduler,
 		scrapeAppsRunning: yarnScrapeAppsRunning,
 		timeout:           timeout,
+		sslVerify:         sslVerify,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "exporter_backend_up",
@@ -151,13 +156,13 @@ type metricInfo struct {
 	Type prometheus.ValueType
 }
 
-func newMetric(subsystem string, metricName string, docString string, t prometheus.ValueType, variableLabels []string, constLabels prometheus.Labels) metricInfo {
+func newMetric(subsystem string, metricName string, docString string, t prometheus.ValueType, variableLabels []string) metricInfo {
 	return metricInfo{
 		Desc: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, metricName),
 			docString,
 			variableLabels,
-			constLabels,
+			nil,
 		),
 		Type: t,
 	}
@@ -167,56 +172,56 @@ var (
 	// metrics Info
 
 	clusterMetrics = map[string]metricInfo{
-		"appsSubmitted":         newMetric("cluster", "applications_submitted", "Total applications submitted", prometheus.CounterValue, nil, nil),
-		"appsCompleted":         newMetric("cluster", "applications_completed", "Total applications completed", prometheus.CounterValue, nil, nil),
-		"appsPending":           newMetric("cluster", "applications_pending", "Applications pending", prometheus.GaugeValue, nil, nil),
-		"appsRunning":           newMetric("cluster", "applications_running", "Applications running", prometheus.GaugeValue, nil, nil),
-		"appsFailed":            newMetric("cluster", "applications_failed", "Total application failed", prometheus.CounterValue, nil, nil),
-		"appsKilled":            newMetric("cluster", "applications_killed", "Total application killed", prometheus.CounterValue, nil, nil),
-		"reservedMB":            newMetric("cluster", "memory_reserved", "Memory reserved", prometheus.GaugeValue, nil, nil),
-		"availableMB":           newMetric("cluster", "memory_available", "Memory available", prometheus.GaugeValue, nil, nil),
-		"allocatedMB":           newMetric("cluster", "memory_allocated", "Memory allocated", prometheus.GaugeValue, nil, nil),
-		"totalMB":               newMetric("cluster", "memory_total", "Total memory", prometheus.GaugeValue, nil, nil),
-		"reservedVirtualCores":  newMetric("cluster", "virtual_cores_reserved", "Virtual cores reserved", prometheus.GaugeValue, nil, nil),
-		"availableVirtualCores": newMetric("cluster", "virtual_cores_available", "Virtual cores available", prometheus.GaugeValue, nil, nil),
-		"allocatedVirtualCores": newMetric("cluster", "virtual_cores_allocated", "Virtual cores allocated", prometheus.GaugeValue, nil, nil),
-		"totalVirtualCores":     newMetric("cluster", "virtual_cores_total", "Total virtual cores", prometheus.GaugeValue, nil, nil),
-		"containersAllocated":   newMetric("cluster", "containers_allocated", "Containers allocated", prometheus.GaugeValue, nil, nil),
-		"containersReserved":    newMetric("cluster", "containers_reserved", "Containers reserved", prometheus.GaugeValue, nil, nil),
-		"containersPending":     newMetric("cluster", "containers_pending", "Containers pending", prometheus.GaugeValue, nil, nil),
-		"totalNodes":            newMetric("cluster", "nodes_total", "Nodes total", prometheus.GaugeValue, nil, nil),
-		"lostNodes":             newMetric("cluster", "nodes_lost", "Nodes lost", prometheus.GaugeValue, nil, nil),
-		"unhealthyNodes":        newMetric("cluster", "nodes_unhealthy", "Nodes unhealthy", prometheus.GaugeValue, nil, nil),
-		"decommissionedNodes":   newMetric("cluster", "nodes_decommissioned", "Nodes decommissioned", prometheus.GaugeValue, nil, nil),
-		"decommissioningNodes":  newMetric("cluster", "nodes_decommissioning", "Nodes decommissioning", prometheus.GaugeValue, nil, nil),
-		"rebootedNodes":         newMetric("cluster", "nodes_rebooted", "Nodes rebooted", prometheus.GaugeValue, nil, nil),
-		"activeNodes":           newMetric("cluster", "nodes_active", "Nodes active", prometheus.GaugeValue, nil, nil),
+		"appsSubmitted":         newMetric("cluster", "applications_submitted", "Total applications submitted", prometheus.CounterValue, nil),
+		"appsCompleted":         newMetric("cluster", "applications_completed", "Total applications completed", prometheus.CounterValue, nil),
+		"appsPending":           newMetric("cluster", "applications_pending", "Applications pending", prometheus.GaugeValue, nil),
+		"appsRunning":           newMetric("cluster", "applications_running", "Applications running", prometheus.GaugeValue, nil),
+		"appsFailed":            newMetric("cluster", "applications_failed", "Total application failed", prometheus.CounterValue, nil),
+		"appsKilled":            newMetric("cluster", "applications_killed", "Total application killed", prometheus.CounterValue, nil),
+		"reservedMB":            newMetric("cluster", "memory_reserved", "Memory reserved", prometheus.GaugeValue, nil),
+		"availableMB":           newMetric("cluster", "memory_available", "Memory available", prometheus.GaugeValue, nil),
+		"allocatedMB":           newMetric("cluster", "memory_allocated", "Memory allocated", prometheus.GaugeValue, nil),
+		"totalMB":               newMetric("cluster", "memory_total", "Total memory", prometheus.GaugeValue, nil),
+		"reservedVirtualCores":  newMetric("cluster", "virtual_cores_reserved", "Virtual cores reserved", prometheus.GaugeValue, nil),
+		"availableVirtualCores": newMetric("cluster", "virtual_cores_available", "Virtual cores available", prometheus.GaugeValue, nil),
+		"allocatedVirtualCores": newMetric("cluster", "virtual_cores_allocated", "Virtual cores allocated", prometheus.GaugeValue, nil),
+		"totalVirtualCores":     newMetric("cluster", "virtual_cores_total", "Total virtual cores", prometheus.GaugeValue, nil),
+		"containersAllocated":   newMetric("cluster", "containers_allocated", "Containers allocated", prometheus.GaugeValue, nil),
+		"containersReserved":    newMetric("cluster", "containers_reserved", "Containers reserved", prometheus.GaugeValue, nil),
+		"containersPending":     newMetric("cluster", "containers_pending", "Containers pending", prometheus.GaugeValue, nil),
+		"totalNodes":            newMetric("cluster", "nodes_total", "Nodes total", prometheus.GaugeValue, nil),
+		"lostNodes":             newMetric("cluster", "nodes_lost", "Nodes lost", prometheus.GaugeValue, nil),
+		"unhealthyNodes":        newMetric("cluster", "nodes_unhealthy", "Nodes unhealthy", prometheus.GaugeValue, nil),
+		"decommissionedNodes":   newMetric("cluster", "nodes_decommissioned", "Nodes decommissioned", prometheus.GaugeValue, nil),
+		"decommissioningNodes":  newMetric("cluster", "nodes_decommissioning", "Nodes decommissioning", prometheus.GaugeValue, nil),
+		"rebootedNodes":         newMetric("cluster", "nodes_rebooted", "Nodes rebooted", prometheus.GaugeValue, nil),
+		"activeNodes":           newMetric("cluster", "nodes_active", "Nodes active", prometheus.GaugeValue, nil),
 	}
 
 	schedulerQueueLabels  = []string{"queue"} // queue = queueName
 	schedulerQueueMetrics = map[string]metricInfo{
-		"capacity":             newMetric("queue", "capacity", "Configured queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"usedCapacity":         newMetric("queue", "capacity_used", "Used queue capacity in percentage", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"maxCapacity":          newMetric("queue", "capacity_max", "Configured maximum queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"absoluteCapacity":     newMetric("queue", "capacity_absolute", "Absolute capacity percentage this queue can use of entire cluster", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"absoluteUsedCapacity": newMetric("queue", "capacity_absolute_used", "Absolute used capacity percentage this queue is using of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"absoluteMaxCapacity":  newMetric("queue", "capacity_absolute_max", "Absolute maximum capacity percentage this queue can use of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"numApplications":      newMetric("queue", "applications", "The number of applications currently in the queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"resourcesUsed_memory": newMetric("queue", "resources_memory_used", "The total amount of memory used by this queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"resourcesUsed_vCores": newMetric("queue", "resources_vcores_used", "The total amount of vCores used by this queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
+		"capacity":             newMetric("queue", "capacity", "Configured queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"usedCapacity":         newMetric("queue", "capacity_used", "Used queue capacity in percentage", prometheus.GaugeValue, schedulerQueueLabels),
+		"maxCapacity":          newMetric("queue", "capacity_max", "Configured maximum queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"absoluteCapacity":     newMetric("queue", "capacity_absolute", "Absolute capacity percentage this queue can use of entire cluster", prometheus.GaugeValue, schedulerQueueLabels),
+		"absoluteUsedCapacity": newMetric("queue", "capacity_absolute_used", "Absolute used capacity percentage this queue is using of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels),
+		"absoluteMaxCapacity":  newMetric("queue", "capacity_absolute_max", "Absolute maximum capacity percentage this queue can use of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels),
+		"numApplications":      newMetric("queue", "applications", "The number of applications currently in the queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"resourcesUsed_memory": newMetric("queue", "resources_memory_used", "The total amount of memory used by this queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"resourcesUsed_vCores": newMetric("queue", "resources_vcores_used", "The total amount of vCores used by this queue", prometheus.GaugeValue, schedulerQueueLabels),
 		// for type capacitySchedulerLeafQueueInfo
-		"numActiveApplications":  newMetric("queue", "applications_active", "The number of active applications in this queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"numPendingApplications": newMetric("queue", "applications_pending", "The number of pending applications in this queue", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"numContainers":          newMetric("queue", "containers", "The number of containers being used", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"maxApplications":        newMetric("queue", "applications_max", "The maximum number of applications this queue can have", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"maxApplicationsPerUser": newMetric("queue", "applications_peruser_max", "The maximum number of applications per user this queue can have", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"userLimit":              newMetric("queue", "user_limit", "The minimum user limit percent set in the configuration", prometheus.GaugeValue, schedulerQueueLabels, nil),
-		"userLimitFactor":        newMetric("queue", "user_limitfactor", "The user limit factor set in the configuration", prometheus.GaugeValue, schedulerQueueLabels, nil),
+		"numActiveApplications":  newMetric("queue", "applications_active", "The number of active applications in this queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"numPendingApplications": newMetric("queue", "applications_pending", "The number of pending applications in this queue", prometheus.GaugeValue, schedulerQueueLabels),
+		"numContainers":          newMetric("queue", "containers", "The number of containers being used", prometheus.GaugeValue, schedulerQueueLabels),
+		"maxApplications":        newMetric("queue", "applications_max", "The maximum number of applications this queue can have", prometheus.GaugeValue, schedulerQueueLabels),
+		"maxApplicationsPerUser": newMetric("queue", "applications_peruser_max", "The maximum number of applications per user this queue can have", prometheus.GaugeValue, schedulerQueueLabels),
+		"userLimit":              newMetric("queue", "user_limit", "The minimum user limit percent set in the configuration", prometheus.GaugeValue, schedulerQueueLabels),
+		"userLimitFactor":        newMetric("queue", "user_limitfactor", "The user limit factor set in the configuration", prometheus.GaugeValue, schedulerQueueLabels),
 		// users
-		"user_resourcesUsed_memory":   newMetric("queue", "user_memory_used", "The amount of memory used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username"), nil),
-		"user_resourcesUsed_vCores":   newMetric("queue", "user_vcores_used", "The amount of vCores used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username"), nil),
-		"user_numActiveApplications":  newMetric("queue", "user_applications_active", "The number of active applications for this user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username"), nil),
-		"user_numPendingApplications": newMetric("queue", "user_applications_pending", "The number of pending applications for this user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username"), nil),
+		"user_resourcesUsed_memory":   newMetric("queue", "user_memory_used", "The amount of memory used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
+		"user_resourcesUsed_vCores":   newMetric("queue", "user_vcores_used", "The amount of vCores used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
+		"user_numActiveApplications":  newMetric("queue", "user_applications_active", "The number of active applications for this user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
+		"user_numPendingApplications": newMetric("queue", "user_applications_pending", "The number of pending applications for this user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
 	}
 )
 
@@ -356,7 +361,7 @@ func (e *Exporter) fetchPath(subpath string) ([]byte, error) {
 		level.Error(e.logger).Log("msg", "Can't parse target url", "err", err)
 		return nil, err
 	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !*yarnSSLVerify}}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !e.sslVerify}}
 	client := http.Client{
 		Timeout:   e.timeout,
 		Transport: tr,
