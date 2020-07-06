@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	listenAddress         = kingpin.Flag("web.listen-address", "Address to listen on.").Default(":9911").String()
+	listenAddress         = kingpin.Flag("web.listen-address", "Address to listen on.").Default(":9113").String()
 	metricsPath           = kingpin.Flag("web.metrics-path", "Path under which to expose metrics.").Default("/metrics").String()
 	yarnURL               = kingpin.Flag("yarn.url", "URL on which to scrape yarn.").Default("http://localhost:8088").String()
 	yarnSSLVerify         = kingpin.Flag("yarn.ssl-verify", "Flag that enables SSL certificate verification for the scrape URI").Default("false").Bool()

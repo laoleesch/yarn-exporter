@@ -9,5 +9,5 @@ RUN cd /src && \
 FROM golang:alpine
 WORKDIR /yarn-exporter
 COPY --from=build-env /src/yarn-exporter /usr/bin/
-EXPOSE 9911/tcp
+EXPOSE 9113/tcp
 ENTRYPOINT [ "/usr/bin/yarn-exporter" ]
