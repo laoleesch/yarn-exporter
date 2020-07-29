@@ -299,15 +299,23 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 		data["scheduler"]["schedulerInfo"]["queueName"].(string),
 	)
 
-	queues := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{})["queue"].([]interface{})
-	for _, q := range queues {
-		parseQueue(q.(map[string]interface{}), ch)
+	if queues := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{}); queues != nil {
+		if queuesList := queues["queue"].([]interface{}); queuesList != nil {
+			for _, q := range queuesList {
+				if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+					e.totalFetchesFailures.Inc()
+					level.Error(e.logger).Log("msg", "Can't unmarshal scheduler", "err", err)
+					return false
+				}
+			}
+			return true
+		}
 	}
-
-	return true
+	e.totalFetchesFailures.Inc()
+	return false
 }
 
-func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) {
+func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
 	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["capacity"].Desc, schedulerQueueMetrics["capacity"].Type, queue["capacity"].(float64), queue["queueName"].(string))
 	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["usedCapacity"].Desc, schedulerQueueMetrics["usedCapacity"].Type, queue["usedCapacity"].(float64), queue["queueName"].(string))
 	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["maxCapacity"].Desc, schedulerQueueMetrics["maxCapacity"].Type, queue["maxCapacity"].(float64), queue["queueName"].(string))
@@ -343,12 +351,21 @@ func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) {
 	}
 
 	if _, ok := queue["queues"]; ok {
-		queues := queue["queues"].(map[string]interface{})["queue"].([]interface{})
-		for _, q := range queues {
-			parseQueue(q.(map[string]interface{}), ch)
+		if queues := queue["queues"].(map[string]interface{}); queues != nil {
+			if queuesList := queues["queue"].([]interface{}); queuesList != nil {
+				for _, q := range queuesList {
+					if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+						return err
+					}
+				}
+			} else {
+				return errors.New("subqueue in " + queue["queueName"].(string) + " is empty")
+			}
+		} else {
+			return errors.New("subqueues in " + queue["queueName"].(string) + " is empty")
 		}
 	}
-
+	return nil
 }
 
 func (e *Exporter) fetchPath(subpath string) ([]byte, error) {
