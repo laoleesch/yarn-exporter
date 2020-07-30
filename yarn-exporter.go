@@ -128,7 +128,7 @@ type Exporter struct {
 // NewExporter returns an initialized Exporter.
 func NewExporter(fetchClusterMetricData func() ([]byte, error), fetchSchedulerMetricsData func() ([]byte, error), logger log.Logger) (*Exporter, error) {
 	if fetchClusterMetricData == nil && fetchSchedulerMetricsData == nil || logger == nil {
-		return nil, errors.New("Wrong Exporter init")
+		return nil, errors.New("wrong Exporter init")
 	}
 
 	return &Exporter{
