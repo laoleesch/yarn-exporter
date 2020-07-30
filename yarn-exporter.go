@@ -299,20 +299,28 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 		data["scheduler"]["schedulerInfo"]["queueName"].(string),
 	)
 
-	if queues := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{}); queues != nil {
-		if queuesList := queues["queue"].([]interface{}); queuesList != nil {
-			for _, q := range queuesList {
-				if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
-					e.totalFetchesFailures.Inc()
-					level.Error(e.logger).Log("msg", "Can't unmarshal scheduler", "err", err)
-					return false
-				}
+	queues := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{})
+	if queues == nil {
+		e.totalFetchesFailures.Inc()
+		level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
+		return false
+	}
+	queuesList := queues["queue"].([]interface{})
+	if len(queuesList) == 0 {
+		e.totalFetchesFailures.Inc()
+		level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
+		return false
+	}
+	for _, q := range queuesList {
+		if q != nil {
+			if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+				e.totalFetchesFailures.Inc()
+				level.Error(e.logger).Log("msg", "Can't unmarshal queue", "err", err)
+				return false
 			}
-			return true
 		}
 	}
-	e.totalFetchesFailures.Inc()
-	return false
+	return true
 }
 
 func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
@@ -351,18 +359,20 @@ func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err 
 	}
 
 	if _, ok := queue["queues"]; ok {
-		if queues := queue["queues"].(map[string]interface{}); queues != nil {
-			if queuesList := queues["queue"].([]interface{}); queuesList != nil {
-				for _, q := range queuesList {
-					if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
-						return err
-					}
+		queues := queue["queues"].(map[string]interface{})
+		if queues == nil {
+			return errors.New("queues in " + queue["queueName"].(string) + " is empty")
+		}
+		queuesList := queues["queue"].([]interface{})
+		if len(queuesList) == 0 {
+			return errors.New("queues in " + queue["queueName"].(string) + " is empty")
+		}
+		for _, q := range queuesList {
+			if q != nil {
+				if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+					return err
 				}
-			} else {
-				return errors.New("subqueue in " + queue["queueName"].(string) + " is empty")
 			}
-		} else {
-			return errors.New("subqueues in " + queue["queueName"].(string) + " is empty")
 		}
 	}
 	return nil
