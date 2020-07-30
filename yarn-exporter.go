@@ -24,13 +24,19 @@ import (
 )
 
 var (
-	listenAddress         = kingpin.Flag("web.listen-address", "Address to listen on.").Default(":9113").String()
-	metricsPath           = kingpin.Flag("web.metrics-path", "Path under which to expose metrics.").Default("/metrics").String()
-	yarnURL               = kingpin.Flag("yarn.url", "URL on which to scrape yarn.").Default("http://localhost:8088").String()
-	yarnSSLVerify         = kingpin.Flag("yarn.ssl-verify", "Flag that enables SSL certificate verification for the scrape URI").Default("false").Bool()
-	yarnScrapeScheduler   = kingpin.Flag("yarn.scrape-scheduler", "Flag that enables scheduler metrics /ws/v1/cluster/scheduler").Default("false").Bool()
-	yarnScrapeAppsRunning = kingpin.Flag("yarn.scrape-apps-running", "Flag that enables running apps metrics /ws/v1/cluster/apps?state=RUNNING").Default("false").Bool()
-	yarnTimeout           = kingpin.Flag("yarn.timeout", "Timeout for trying to get stats from yarn.").Default("5s").Duration()
+	listenAddress       = kingpin.Flag("web.listen-address", "Address to listen on.").Default(":9113").String()
+	metricsPath         = kingpin.Flag("web.metrics-path", "Path under which to expose metrics.").Default("/metrics").String()
+	yarnURL             = kingpin.Flag("yarn.url", "URL on which to scrape yarn.").Default("http://localhost:8088").String()
+	yarnSSLVerify       = kingpin.Flag("yarn.ssl-verify", "Flag that enables SSL certificate verification for the scrape URI").Default("false").Bool()
+	yarnScrapeScheduler = kingpin.Flag("yarn.scrape-scheduler", "Flag that enables scheduler metrics /ws/v1/cluster/scheduler").Default("false").Bool()
+	// yarnScrapeAppsRunning = kingpin.Flag("yarn.scrape-apps-running", "Flag that enables running apps metrics /ws/v1/cluster/apps?state=RUNNING").Default("false").Bool()
+	yarnTimeout = kingpin.Flag("yarn.timeout", "Timeout for trying to get stats from yarn.").Default("5s").Duration()
+)
+
+const (
+	namespace          = "yarn"
+	yarn_api_cluster   = "/ws/v1/cluster/metrics"
+	yarn_api_scheduler = "/ws/v1/cluster/scheduler"
 )
 
 func main() {
@@ -42,7 +48,21 @@ func main() {
 	level.Info(logger).Log("msg", "Starting yarn-exporter")
 	level.Info(logger).Log("msg", "Listening on ", "address", *listenAddress)
 
-	exporter, err := NewExporter(*yarnURL, *yarnScrapeScheduler, *yarnScrapeAppsRunning, logger)
+	_, err := url.Parse(*yarnURL)
+	if err != nil {
+		level.Error(logger).Log("msg", "Error parse url", "err", err)
+		os.Exit(1)
+	}
+
+	var fetchClusterMetricData func() ([]byte, error)
+	var fetchSchedulerMetricsData func() ([]byte, error)
+
+	fetchClusterMetricData = fetchURLFunc(*yarnURL + yarn_api_cluster)
+	if *yarnScrapeScheduler {
+		fetchSchedulerMetricsData = fetchURLFunc(*yarnURL + yarn_api_scheduler)
+	}
+
+	exporter, err := NewExporter(fetchClusterMetricData, fetchSchedulerMetricsData, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "Error creating an exporter", "err", err)
 		os.Exit(1)
@@ -91,17 +111,10 @@ func main() {
 
 }
 
-const (
-	namespace          = "yarn"
-	yarn_api_cluster   = "/ws/v1/cluster/metrics"
-	yarn_api_scheduler = "/ws/v1/cluster/scheduler"
-)
-
 // Exporter collects YARN stats from the given API URL and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	URL                                *url.URL
-	scrapeScheduler, scrapeAppsRunning bool
+	fetchClusterMetricsData, fetchSchedulerMetricsData func() ([]byte, error)
 
 	up                   prometheus.Gauge
 	totalScrapes         prometheus.Counter
@@ -113,16 +126,10 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(targetURL string, yarnScrapeScheduler bool, yarnScrapeAppsRunning bool, logger log.Logger) (*Exporter, error) {
-	baseURL, err := url.Parse(targetURL)
-	if err != nil {
-		return nil, err
-	}
-
+func NewExporter(fetchClusterMetricData func() ([]byte, error), fetchSchedulerMetricsData func() ([]byte, error), logger log.Logger) (*Exporter, error) {
 	return &Exporter{
-		URL:               baseURL,
-		scrapeScheduler:   yarnScrapeScheduler,
-		scrapeAppsRunning: yarnScrapeAppsRunning,
+		fetchClusterMetricsData:   fetchClusterMetricData,
+		fetchSchedulerMetricsData: fetchSchedulerMetricsData,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "exporter_backend_up",
@@ -245,9 +252,17 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	e.totalScrapes.Inc()
-
 	up := 0.0
-	if e.scrapeClusterMetrics(ch) && e.scrapeSchedulerMetrics(ch) {
+	ok := false
+
+	if e.fetchClusterMetricsData != nil {
+		ok = e.scrapeClusterMetrics(ch)
+	}
+	if e.fetchSchedulerMetricsData != nil {
+		ok = ok && e.scrapeSchedulerMetrics(ch)
+	}
+
+	if ok {
 		up = 1.0
 	}
 
@@ -261,7 +276,7 @@ func (e *Exporter) scrapeClusterMetrics(ch chan<- prometheus.Metric) (up bool) {
 	e.totalFetches.Inc()
 
 	var data map[string]map[string]float64
-	body, err := e.fetchPath(yarn_api_cluster)
+	body, err := e.fetchClusterMetricsData()
 	if err != nil {
 		e.totalFetchesFailures.Inc()
 		level.Error(e.logger).Log("msg", "Can't scrape YARN", "err", err)
@@ -285,7 +300,7 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 	e.totalFetches.Inc()
 
 	var data map[string]map[string]map[string]interface{}
-	body, err := e.fetchPath(yarn_api_scheduler)
+	body, err := e.fetchSchedulerMetricsData()
 	if err != nil {
 		e.totalFetchesFailures.Inc()
 		level.Error(e.logger).Log("msg", "Can't scrape YARN", "err", err)
@@ -319,7 +334,7 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 	}
 	for _, q := range queuesList {
 		if q != nil {
-			if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+			if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
 				e.totalFetchesFailures.Inc()
 				level.Error(e.logger).Log("msg", "Can't unmarshal queue", "err", err)
 				return false
@@ -329,7 +344,7 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 	return true
 }
 
-func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
+func (e *Exporter) parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
 	for name, metric := range schedulerQueueMetrics {
 		ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, queue[name].(float64), queue["queueName"].(string))
 	}
@@ -369,7 +384,7 @@ func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err 
 		}
 		for _, q := range queuesList {
 			if q != nil {
-				if err := parseQueue(q.(map[string]interface{}), ch); err != nil {
+				if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
 					return err
 				}
 			}
@@ -378,39 +393,40 @@ func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err 
 	return nil
 }
 
-func (e *Exporter) fetchPath(subpath string) ([]byte, error) {
-	targetURL, err := e.URL.Parse(e.URL.Path + subpath)
-	if err != nil {
-		level.Error(e.logger).Log("msg", "Can't parse target url", "err", err)
-		return nil, err
-	}
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !*yarnSSLVerify}}
-	client := http.Client{
-		Timeout:   *yarnTimeout,
-		Transport: tr,
-	}
-	req := http.Request{
-		Method:     "GET",
-		URL:        targetURL,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		Host:       targetURL.Host,
-	}
-	resp, err := client.Do(&req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return nil, errors.New("unexpected HTTP status: " + string(resp.StatusCode))
-	}
+func fetchURLFunc(target string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		targetURL, err := url.Parse(target)
+		if err != nil {
+			return nil, err
+		}
+		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: !*yarnSSLVerify}}
+		client := http.Client{
+			Timeout:   *yarnTimeout,
+			Transport: tr,
+		}
+		req := http.Request{
+			Method:     "GET",
+			URL:        targetURL,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     make(http.Header),
+			Host:       targetURL.Host,
+		}
+		resp, err := client.Do(&req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
+			return nil, errors.New("unexpected HTTP status: " + string(resp.StatusCode))
+		}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
 
-	return body, nil
+		return body, nil
+	}
 }
