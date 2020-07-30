@@ -203,8 +203,12 @@ var (
 		"absoluteUsedCapacity": newMetric("queue", "capacity_absolute_used", "Absolute used capacity percentage this queue is using of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels),
 		"absoluteMaxCapacity":  newMetric("queue", "capacity_absolute_max", "Absolute maximum capacity percentage this queue can use of the entire cluster", prometheus.GaugeValue, schedulerQueueLabels),
 		"numApplications":      newMetric("queue", "applications", "The number of applications currently in the queue", prometheus.GaugeValue, schedulerQueueLabels),
+	}
+	schedulerQueueMetricsResources = map[string]metricInfo{
 		"resourcesUsed_memory": newMetric("queue", "resources_memory_used", "The total amount of memory used by this queue", prometheus.GaugeValue, schedulerQueueLabels),
 		"resourcesUsed_vCores": newMetric("queue", "resources_vcores_used", "The total amount of vCores used by this queue", prometheus.GaugeValue, schedulerQueueLabels),
+	}
+	schedulerQueueMetricsLeaf = map[string]metricInfo{
 		// for type capacitySchedulerLeafQueueInfo
 		"numActiveApplications":  newMetric("queue", "applications_active", "The number of active applications in this queue", prometheus.GaugeValue, schedulerQueueLabels),
 		"numPendingApplications": newMetric("queue", "applications_pending", "The number of pending applications in this queue", prometheus.GaugeValue, schedulerQueueLabels),
@@ -213,6 +217,8 @@ var (
 		"maxApplicationsPerUser": newMetric("queue", "applications_peruser_max", "The maximum number of applications per user this queue can have", prometheus.GaugeValue, schedulerQueueLabels),
 		"userLimit":              newMetric("queue", "user_limit", "The minimum user limit percent set in the configuration", prometheus.GaugeValue, schedulerQueueLabels),
 		"userLimitFactor":        newMetric("queue", "user_limitfactor", "The user limit factor set in the configuration", prometheus.GaugeValue, schedulerQueueLabels),
+	}
+	schedulerQueueMetricsUsers = map[string]metricInfo{
 		// users
 		"user_resourcesUsed_memory":   newMetric("queue", "user_memory_used", "The amount of memory used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
 		"user_resourcesUsed_vCores":   newMetric("queue", "user_vcores_used", "The amount of vCores used by the user in this queue", prometheus.GaugeValue, append(schedulerQueueLabels, "username")),
@@ -324,37 +330,31 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 }
 
 func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["capacity"].Desc, schedulerQueueMetrics["capacity"].Type, queue["capacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["usedCapacity"].Desc, schedulerQueueMetrics["usedCapacity"].Type, queue["usedCapacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["maxCapacity"].Desc, schedulerQueueMetrics["maxCapacity"].Type, queue["maxCapacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["absoluteCapacity"].Desc, schedulerQueueMetrics["absoluteCapacity"].Type, queue["absoluteCapacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["absoluteMaxCapacity"].Desc, schedulerQueueMetrics["absoluteMaxCapacity"].Type, queue["absoluteMaxCapacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["absoluteUsedCapacity"].Desc, schedulerQueueMetrics["absoluteUsedCapacity"].Type, queue["absoluteUsedCapacity"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["numApplications"].Desc, schedulerQueueMetrics["numApplications"].Type, queue["numApplications"].(float64), queue["queueName"].(string))
-
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["resourcesUsed_memory"].Desc, schedulerQueueMetrics["resourcesUsed_memory"].Type, queue["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string))
-	ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["resourcesUsed_vCores"].Desc, schedulerQueueMetrics["resourcesUsed_vCores"].Type, queue["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string))
+	for name, metric := range schedulerQueueMetrics {
+		ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, queue[name].(float64), queue["queueName"].(string))
+	}
+	ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsResources["resourcesUsed_memory"].Desc, schedulerQueueMetricsResources["resourcesUsed_memory"].Type, queue["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string))
+	ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsResources["resourcesUsed_vCores"].Desc, schedulerQueueMetricsResources["resourcesUsed_vCores"].Type, queue["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string))
 
 	if _, ok := queue["type"]; ok {
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["numActiveApplications"].Desc, schedulerQueueMetrics["numActiveApplications"].Type, queue["numActiveApplications"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["numPendingApplications"].Desc, schedulerQueueMetrics["numPendingApplications"].Type, queue["numPendingApplications"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["numContainers"].Desc, schedulerQueueMetrics["numContainers"].Type, queue["numContainers"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["maxApplications"].Desc, schedulerQueueMetrics["maxApplications"].Type, queue["maxApplications"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["maxApplicationsPerUser"].Desc, schedulerQueueMetrics["maxApplicationsPerUser"].Type, queue["maxApplicationsPerUser"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["userLimit"].Desc, schedulerQueueMetrics["userLimit"].Type, queue["userLimit"].(float64), queue["queueName"].(string))
-		ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["userLimitFactor"].Desc, schedulerQueueMetrics["userLimitFactor"].Type, queue["userLimitFactor"].(float64), queue["queueName"].(string))
+		for name, metric := range schedulerQueueMetricsLeaf {
+			ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, queue[name].(float64), queue["queueName"].(string))
+		}
 
 		users := queue["users"].(map[string]interface{})["user"].([]interface{})
-		for _, u := range users {
-			user := u.(map[string]interface{})
-			ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["user_resourcesUsed_memory"].Desc, schedulerQueueMetrics["user_resourcesUsed_memory"].Type,
-				user["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string), user["username"].(string))
-			ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["user_resourcesUsed_vCores"].Desc, schedulerQueueMetrics["user_resourcesUsed_vCores"].Type,
-				user["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string), user["username"].(string))
-			ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["user_numActiveApplications"].Desc, schedulerQueueMetrics["user_numActiveApplications"].Type,
-				user["numActiveApplications"].(float64), queue["queueName"].(string), user["username"].(string))
-			ch <- prometheus.MustNewConstMetric(schedulerQueueMetrics["user_numPendingApplications"].Desc, schedulerQueueMetrics["user_numPendingApplications"].Type,
-				user["numPendingApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+		if len(users) > 0 {
+			for _, u := range users {
+				if user, ok := u.(map[string]interface{}); ok {
+					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Type,
+						user["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string), user["username"].(string))
+					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Type,
+						user["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string), user["username"].(string))
+					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numActiveApplications"].Desc, schedulerQueueMetricsUsers["user_numActiveApplications"].Type,
+						user["numActiveApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numPendingApplications"].Desc, schedulerQueueMetricsUsers["user_numPendingApplications"].Type,
+						user["numPendingApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+				}
+			}
 		}
 	}
 
@@ -379,7 +379,7 @@ func parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err 
 }
 
 func (e *Exporter) fetchPath(subpath string) ([]byte, error) {
-	targetURL, err := e.URL.Parse(subpath)
+	targetURL, err := e.URL.Parse(e.URL.Path + subpath)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Can't parse target url", "err", err)
 		return nil, err
