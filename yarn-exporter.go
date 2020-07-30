@@ -253,10 +253,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	defer e.mutex.Unlock()
 	e.totalScrapes.Inc()
 	up := 0.0
-	ok := false
+	ok := true
 
 	if e.fetchClusterMetricsData != nil {
-		ok = e.scrapeClusterMetrics(ch)
+		ok = ok && e.scrapeClusterMetrics(ch)
 	}
 	if e.fetchSchedulerMetricsData != nil {
 		ok = ok && e.scrapeSchedulerMetrics(ch)
