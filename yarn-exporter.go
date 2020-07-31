@@ -324,28 +324,33 @@ func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool)
 		data["scheduler"]["schedulerInfo"]["queueName"].(string),
 	)
 
-	queues := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{})
-	if queues == nil {
-		e.totalFetchesFailures.Inc()
-		level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
-		return false
-	}
-	queuesList := queues["queue"].([]interface{})
-	if len(queuesList) == 0 {
-		e.totalFetchesFailures.Inc()
-		level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
-		return false
-	}
-	for _, q := range queuesList {
-		if q != nil {
-			if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
+	if queues, ok := data["scheduler"]["schedulerInfo"]["queues"].(map[string]interface{}); ok {
+		if queues == nil {
+			e.totalFetchesFailures.Inc()
+			level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
+			return false
+		}
+		if queuesList, ok := queues["queue"].([]interface{}); ok {
+			if len(queuesList) == 0 {
 				e.totalFetchesFailures.Inc()
-				level.Error(e.logger).Log("msg", "Can't unmarshal queue", "err", err)
+				level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
 				return false
 			}
+			for _, q := range queuesList {
+				if _, ok := q.(map[string]interface{}); ok {
+					if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
+						e.totalFetchesFailures.Inc()
+						level.Error(e.logger).Log("msg", "Can't unmarshal queue", "err", err)
+						return false
+					}
+				}
+			}
+			return true
 		}
 	}
-	return true
+	e.totalFetchesFailures.Inc()
+	level.Error(e.logger).Log("msg", "Empty scheduler queues", "err", err)
+	return false
 }
 
 func (e *Exporter) parseQueue(queue map[string]interface{}, ch chan<- prometheus.Metric) (err error) {
@@ -360,8 +365,7 @@ func (e *Exporter) parseQueue(queue map[string]interface{}, ch chan<- prometheus
 			ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, queue[name].(float64), queue["queueName"].(string))
 		}
 
-		users := queue["users"].(map[string]interface{})["user"].([]interface{})
-		if len(users) > 0 {
+		if users, ok := queue["users"].(map[string]interface{})["user"].([]interface{}); ok && len(users) > 0 {
 			for _, u := range users {
 				if user, ok := u.(map[string]interface{}); ok {
 					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Type,
@@ -377,19 +381,19 @@ func (e *Exporter) parseQueue(queue map[string]interface{}, ch chan<- prometheus
 		}
 	}
 
-	if _, ok := queue["queues"]; ok {
-		queues := queue["queues"].(map[string]interface{})
+	if queues, ok := queue["queues"].(map[string]interface{}); ok {
 		if queues == nil {
 			return errors.New("queues in " + queue["queueName"].(string) + " is empty")
 		}
-		queuesList := queues["queue"].([]interface{})
-		if len(queuesList) == 0 {
-			return errors.New("queues in " + queue["queueName"].(string) + " is empty")
-		}
-		for _, q := range queuesList {
-			if q != nil {
-				if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
-					return err
+		if queuesList, ok := queues["queue"].([]interface{}); ok {
+			if len(queuesList) == 0 {
+				return errors.New("queues in " + queue["queueName"].(string) + " is empty")
+			}
+			for _, q := range queuesList {
+				if _, ok := q.(map[string]interface{}); ok {
+					if err := e.parseQueue(q.(map[string]interface{}), ch); err != nil {
+						return err
+					}
 				}
 			}
 		}
