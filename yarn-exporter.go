@@ -244,6 +244,18 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	for _, m := range clusterMetrics {
 		ch <- m.Desc
 	}
+	for _, m := range schedulerQueueMetrics {
+		ch <- m.Desc
+	}
+	for _, m := range schedulerQueueMetricsResources {
+		ch <- m.Desc
+	}
+	for _, m := range schedulerQueueMetricsLeaf {
+		ch <- m.Desc
+	}
+	for _, m := range schedulerQueueMetricsUsers {
+		ch <- m.Desc
+	}
 	ch <- e.up.Desc()
 	ch <- e.totalScrapes.Desc()
 	ch <- e.totalFetches.Desc()
@@ -277,6 +289,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) scrapeClusterMetrics(ch chan<- prometheus.Metric) (up bool) {
+	if e.fetchClusterMetricsData == nil {
+		return false
+	}
+
 	e.totalFetches.Inc()
 
 	var data map[string]map[string]float64
@@ -301,6 +317,9 @@ func (e *Exporter) scrapeClusterMetrics(ch chan<- prometheus.Metric) (up bool) {
 }
 
 func (e *Exporter) scrapeSchedulerMetrics(ch chan<- prometheus.Metric) (up bool) {
+	if e.fetchSchedulerMetricsData == nil {
+		return false
+	}
 	e.totalFetches.Inc()
 
 	var data map[string]map[string]map[string]interface{}
