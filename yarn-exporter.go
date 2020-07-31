@@ -384,17 +384,19 @@ func (e *Exporter) parseQueue(queue map[string]interface{}, ch chan<- prometheus
 			ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, queue[name].(float64), queue["queueName"].(string))
 		}
 
-		if users, ok := queue["users"].(map[string]interface{})["user"].([]interface{}); ok && len(users) > 0 {
-			for _, u := range users {
-				if user, ok := u.(map[string]interface{}); ok {
-					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Type,
-						user["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string), user["username"].(string))
-					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Type,
-						user["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string), user["username"].(string))
-					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numActiveApplications"].Desc, schedulerQueueMetricsUsers["user_numActiveApplications"].Type,
-						user["numActiveApplications"].(float64), queue["queueName"].(string), user["username"].(string))
-					ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numPendingApplications"].Desc, schedulerQueueMetricsUsers["user_numPendingApplications"].Type,
-						user["numPendingApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+		if user, ok := queue["users"].(map[string]interface{}); ok {
+			if users, ok := user["user"].([]interface{}); ok && len(users) > 0 {
+				for _, u := range users {
+					if user, ok := u.(map[string]interface{}); ok {
+						ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_memory"].Type,
+							user["resourcesUsed"].(map[string]interface{})["memory"].(float64), queue["queueName"].(string), user["username"].(string))
+						ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Desc, schedulerQueueMetricsUsers["user_resourcesUsed_vCores"].Type,
+							user["resourcesUsed"].(map[string]interface{})["vCores"].(float64), queue["queueName"].(string), user["username"].(string))
+						ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numActiveApplications"].Desc, schedulerQueueMetricsUsers["user_numActiveApplications"].Type,
+							user["numActiveApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+						ch <- prometheus.MustNewConstMetric(schedulerQueueMetricsUsers["user_numPendingApplications"].Desc, schedulerQueueMetricsUsers["user_numPendingApplications"].Type,
+							user["numPendingApplications"].(float64), queue["queueName"].(string), user["username"].(string))
+					}
 				}
 			}
 		}
