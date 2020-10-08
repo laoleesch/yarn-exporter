@@ -25,33 +25,33 @@ type ClusterExporter struct {
 }
 
 // NewExporter returns an initialized ClusterExporter.
-func NewExporter(namespace string, API APIMeter, fetchDataFunc func() ([]byte, error), logger log.Logger) (*ClusterExporter, error) {
+func NewExporter(namespace string, api APIMeter, fetchDataFunc func() ([]byte, error), logger log.Logger) (*ClusterExporter, error) {
 
 	if fetchDataFunc == nil || logger == nil {
 		return nil, errors.New("wrong ClusterExporter init")
 	}
 
-	metricsInfo := API.DefMetricsInfo(namespace)
+	metricsInfo := api.DefMetricsInfo(namespace)
 
 	return &ClusterExporter{
 		metricsInfo: metricsInfo,
 		fetch:       fetchDataFunc,
-		scrape:      API.Scrape,
+		scrape:      api.Scrape,
 
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace + "_" + API.Subsystem(),
+			Namespace: namespace + "_" + api.Subsystem(),
 			Name:      "up",
-			Help:      "Was the last scrape of YARN " + API.Subsystem() + " API successful.",
+			Help:      "Was the last scrape of YARN " + api.Subsystem() + " API successful.",
 		}),
 		totalFetches: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace + "_" + API.Subsystem(),
+			Namespace: namespace + "_" + api.Subsystem(),
 			Name:      "fetches_total",
-			Help:      "Current total YARN " + API.Subsystem() + " API fetches.",
+			Help:      "Current total YARN " + api.Subsystem() + " API fetches.",
 		}),
 		totalFetchesFailures: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace + "_" + API.Subsystem(),
+			Namespace: namespace + "_" + api.Subsystem(),
 			Name:      "fetches_failures_total",
-			Help:      "Current total YARN " + API.Subsystem() + " API fetches failures.",
+			Help:      "Current total YARN " + api.Subsystem() + " API fetches failures.",
 		}),
 		logger: logger,
 	}, nil

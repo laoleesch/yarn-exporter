@@ -82,30 +82,30 @@ func (a *SchedulerMetricsAPI) Subsystem() string {
 // DefMetricsInfo impl APIMeter.DefMetricsInfo
 func (a *SchedulerMetricsAPI) DefMetricsInfo(n string) map[string]collector.MetricInfo {
 	s := a.Subsystem()
-	labels := []string{"queue"}
+	variableLabels := []string{"queue"}
 	a.MetricsInfo = map[string]collector.MetricInfo{
-		"capacity":             collector.NewMetric(n, s, "capacity", "Configured queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, labels),
-		"usedCapacity":         collector.NewMetric(n, s, "capacity_used", "Used queue capacity in percentage", prometheus.GaugeValue, labels),
-		"maxCapacity":          collector.NewMetric(n, s, "capacity_max", "Configured maximum queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, labels),
-		"absoluteCapacity":     collector.NewMetric(n, s, "capacity_absolute", "Absolute capacity percentage this queue can use of entire cluster", prometheus.GaugeValue, labels),
-		"absoluteUsedCapacity": collector.NewMetric(n, s, "capacity_absolute_used", "Absolute used capacity percentage this queue is using of the entire cluster", prometheus.GaugeValue, labels),
-		"absoluteMaxCapacity":  collector.NewMetric(n, s, "capacity_absolute_max", "Absolute maximum capacity percentage this queue can use of the entire cluster", prometheus.GaugeValue, labels),
-		"numApplications":      collector.NewMetric(n, s, "applications", "The number of applications currently in the queue", prometheus.GaugeValue, labels),
-		"resourcesUsed_memory": collector.NewMetric(n, s, "resources_memory_used", "The total amount of memory used by this queue", prometheus.GaugeValue, labels),
-		"resourcesUsed_vCores": collector.NewMetric(n, s, "resources_vcores_used", "The total amount of vCores used by this queue", prometheus.GaugeValue, labels),
+		"capacity":             collector.NewMetric(n, s, "capacity", "Configured queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, variableLabels),
+		"usedCapacity":         collector.NewMetric(n, s, "capacity_used", "Used queue capacity in percentage", prometheus.GaugeValue, variableLabels),
+		"maxCapacity":          collector.NewMetric(n, s, "capacity_max", "Configured maximum queue capacity in percentage relative to its parent queue", prometheus.GaugeValue, variableLabels),
+		"absoluteCapacity":     collector.NewMetric(n, s, "capacity_absolute", "Absolute capacity percentage this queue can use of entire cluster", prometheus.GaugeValue, variableLabels),
+		"absoluteUsedCapacity": collector.NewMetric(n, s, "capacity_absolute_used", "Absolute used capacity percentage this queue is using of the entire cluster", prometheus.GaugeValue, variableLabels),
+		"absoluteMaxCapacity":  collector.NewMetric(n, s, "capacity_absolute_max", "Absolute maximum capacity percentage this queue can use of the entire cluster", prometheus.GaugeValue, variableLabels),
+		"numApplications":      collector.NewMetric(n, s, "applications", "The number of applications currently in the queue", prometheus.GaugeValue, variableLabels),
+		"resourcesUsed_memory": collector.NewMetric(n, s, "resources_memory_used", "The total amount of memory used by this queue", prometheus.GaugeValue, variableLabels),
+		"resourcesUsed_vCores": collector.NewMetric(n, s, "resources_vcores_used", "The total amount of vCores used by this queue", prometheus.GaugeValue, variableLabels),
 		// for type capacitySchedulerLeafQueueInfo
-		"numActiveApplications":  collector.NewMetric(n, s, "applications_active", "The number of active applications in this queue", prometheus.GaugeValue, labels),
-		"numPendingApplications": collector.NewMetric(n, s, "applications_pending", "The number of pending applications in this queue", prometheus.GaugeValue, labels),
-		"numContainers":          collector.NewMetric(n, s, "containers", "The number of containers being used", prometheus.GaugeValue, labels),
-		"maxApplications":        collector.NewMetric(n, s, "applications_max", "The maximum number of applications this queue can have", prometheus.GaugeValue, labels),
-		"maxApplicationsPerUser": collector.NewMetric(n, s, "applications_peruser_max", "The maximum number of applications per user this queue can have", prometheus.GaugeValue, labels),
-		"userLimit":              collector.NewMetric(n, s, "user_limit", "The minimum user limit percent set in the configuration", prometheus.GaugeValue, labels),
-		"userLimitFactor":        collector.NewMetric(n, s, "user_limitfactor", "The user limit factor set in the configuration", prometheus.GaugeValue, labels),
+		"numActiveApplications":  collector.NewMetric(n, s, "applications_active", "The number of active applications in this queue", prometheus.GaugeValue, variableLabels),
+		"numPendingApplications": collector.NewMetric(n, s, "applications_pending", "The number of pending applications in this queue", prometheus.GaugeValue, variableLabels),
+		"numContainers":          collector.NewMetric(n, s, "containers", "The number of containers being used", prometheus.GaugeValue, variableLabels),
+		"maxApplications":        collector.NewMetric(n, s, "applications_max", "The maximum number of applications this queue can have", prometheus.GaugeValue, variableLabels),
+		"maxApplicationsPerUser": collector.NewMetric(n, s, "applications_peruser_max", "The maximum number of applications per user this queue can have", prometheus.GaugeValue, variableLabels),
+		"userLimit":              collector.NewMetric(n, s, "user_limit", "The minimum user limit percent set in the configuration", prometheus.GaugeValue, variableLabels),
+		"userLimitFactor":        collector.NewMetric(n, s, "user_limitfactor", "The user limit factor set in the configuration", prometheus.GaugeValue, variableLabels),
 		// users
-		"user_resourcesUsed_memory":   collector.NewMetric(n, s, "user_memory_used", "The amount of memory used by the user in this queue", prometheus.GaugeValue, append(labels, "username")),
-		"user_resourcesUsed_vCores":   collector.NewMetric(n, s, "user_vcores_used", "The amount of vCores used by the user in this queue", prometheus.GaugeValue, append(labels, "username")),
-		"user_numActiveApplications":  collector.NewMetric(n, s, "user_applications_active", "The number of active applications for this user in this queue", prometheus.GaugeValue, append(labels, "username")),
-		"user_numPendingApplications": collector.NewMetric(n, s, "user_applications_pending", "The number of pending applications for this user in this queue", prometheus.GaugeValue, append(labels, "username")),
+		"user_resourcesUsed_memory":   collector.NewMetric(n, s, "user_memory_used", "The amount of memory used by the user in this queue", prometheus.GaugeValue, append(variableLabels, "username")),
+		"user_resourcesUsed_vCores":   collector.NewMetric(n, s, "user_vcores_used", "The amount of vCores used by the user in this queue", prometheus.GaugeValue, append(variableLabels, "username")),
+		"user_numActiveApplications":  collector.NewMetric(n, s, "user_applications_active", "The number of active applications for this user in this queue", prometheus.GaugeValue, append(variableLabels, "username")),
+		"user_numPendingApplications": collector.NewMetric(n, s, "user_applications_pending", "The number of pending applications for this user in this queue", prometheus.GaugeValue, append(variableLabels, "username")),
 	}
 	return a.MetricsInfo
 }

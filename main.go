@@ -110,7 +110,6 @@ func main() {
 		level.Error(logger).Log("msg", "error during server shutdown", "err", err)
 	}
 	level.Info(logger).Log("msg", "server has been shutted down", "signal", signal)
-	os.Exit(0)
 
 }
 
