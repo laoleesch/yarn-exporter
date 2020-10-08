@@ -3,7 +3,7 @@ ENV CGO_ENABLED=0
 ADD . /src
 RUN cd /src && \
     go get -d -v ./... && \
-    go build -o yarn-exporter yarn-exporter.go && \
+    go build -o yarn-exporter main.go && \
     chmod a+x yarn-exporter
 
 FROM golang:alpine
