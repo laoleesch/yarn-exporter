@@ -9,9 +9,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// ClusterExporter collects YARN stats from the given API URL and exports them using
+// Exporter collects YARN stats from the given API URL and exports them using
 // the prometheus metrics package.
-type ClusterExporter struct {
+type Exporter struct {
 	metricsInfo map[string]MetricInfo
 	fetch       func() ([]byte, error)
 	scrape      func(chan<- prometheus.Metric, func() ([]byte, error)) error
@@ -24,16 +24,16 @@ type ClusterExporter struct {
 	logger log.Logger
 }
 
-// NewExporter returns an initialized ClusterExporter.
-func NewExporter(namespace string, api APIMeter, fetchDataFunc func() ([]byte, error), logger log.Logger) (*ClusterExporter, error) {
+// NewExporter returns an initialized Exporter.
+func NewExporter(namespace string, api APIMeter, fetchDataFunc func() ([]byte, error), logger log.Logger) (*Exporter, error) {
 
 	if fetchDataFunc == nil || logger == nil {
-		return nil, errors.New("wrong ClusterExporter init")
+		return nil, errors.New("wrong Exporter init")
 	}
 
 	metricsInfo := api.DefMetricsInfo(namespace)
 
-	return &ClusterExporter{
+	return &Exporter{
 		metricsInfo: metricsInfo,
 		fetch:       fetchDataFunc,
 		scrape:      api.Scrape,
@@ -59,7 +59,7 @@ func NewExporter(namespace string, api APIMeter, fetchDataFunc func() ([]byte, e
 
 // Describe describes all the metrics ever exported by the YARN exporter. It
 // implements prometheus.Collector.
-func (e *ClusterExporter) Describe(ch chan<- *prometheus.Desc) {
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	for _, m := range e.metricsInfo {
 		ch <- m.Desc
 	}
@@ -70,7 +70,7 @@ func (e *ClusterExporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect fetches the stats from configured YARN API handlers and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
-func (e *ClusterExporter) Collect(ch chan<- prometheus.Metric) {
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
